@@ -30,20 +30,24 @@ INSERT INTO REGEX VALUES(16,'RG','[1234567890][1234567890].[1234567890][12345678
 
 SELECT * FROM REGEX;
 ------------------------------------------------------------------------------------------------------------
---
+--Procedure to clear data using regex table records
 DROP PROCEDURE "SM_STE"."PROC_REGEX_CLEAN";
---
+--Create Statement
 CREATE PROCEDURE "SM_STE"."PROC_REGEX_CLEAN"
 LANGUAGE SQLSCRIPT AS
-BEGIN
-	DECLARE REG_EXP varchar(4999);
-	DECLARE CURSOR CUR_REGEX FOR SELECT EXPRESSION FROM REGEX;
+BEGIN	
+	DECLARE CURSOR CUR_SUBSTR FOR SELECT EXPRESSION FROM REGEX WHERE TYPE='SS';
+	DECLARE CURSOR CUR_REGEX FOR SELECT EXPRESSION FROM REGEX WHERE TYPE='RG';
+    FOR S1 AS CUR_SUBSTR DO 
+    	UPDATE "SM_STE"."PEQP_DATA_SCRUB" SET "Textlog Details" =REPLACE_REGEXPR(:S1.EXPRESSION IN "Textlog Details"
+    	WITH '' OCCURRENCE ALL) ;
+    END FOR;
     FOR R1 AS CUR_REGEX DO 
     	UPDATE "SM_STE"."PEQP_DATA_SCRUB" SET "Textlog Details" =REPLACE_REGEXPR(:R1.EXPRESSION IN "Textlog Details"
     	WITH '' OCCURRENCE ALL) ;
     END FOR;
 END;
-
+--Call Procedure
 call "SM_STE"."PROC_REGEX_CLEAN" ;
 
 --Table with Source/Target strings
@@ -59,23 +63,43 @@ CREATE PROCEDURE "SM_STE"."PROC_ALTER_STRINGS"(IN TABLENAME VARCHAR(4999),IN COL
 ,IN FLAG VARCHAR(2))
 LANGUAGE SQLSCRIPT AS
 BEGIN
+	--check whether the incoming flag is 'RT'/'T'
 	IF :FLAG='RT'
 	THEN
     	  DECLARE CURSOR CUR_STRING FOR SELECT * FROM TAB_STRINGS;
 	  FOR C1 AS CUR_STRING DO 
-	  DECLARE TEMP VARCHAR(1000);
-	  TEMP:='UPDATE '||:TABLENAME||' SET '||:COLUMNNAME||
+	  --Create a temporary string and store the dynamic SQL inside temp 
+	  DECLARE TEMP_RT VARCHAR(1000);
+	  TEMP_RT:='UPDATE '||:TABLENAME||' SET '||:COLUMNNAME||
 		' = REPLACE('||:COLUMNNAME||' , '''||:C1.SOURCE||''' , '''||:C1.TARGET||''')';
-  	EXEC TEMP;
-  	END FOR;
+	  --Execute the temporary variable
+  	  EXEC TEMP_RT;
+  	  END FOR;
 	ELSE
-	 DECLARE CURSOR CUR_STRING FOR SELECT SOURCE,TARGET FROM TAB_STRINGS;
-	FOR C1 AS CUR_STRING DO 
-		DECLARE TEMP VARCHAR(1000);
-	TEMP:='UPDATE '||:TABLENAME||' SET '||:COLUMNNAME||
-		' = REPLACE('||:COLUMNNAME||' , '''||:C1.TARGET||''' , '''||:C1.SOURCE||''')';
-  	EXEC TEMP;
-	END FOR;
+	  DECLARE CURSOR CUR_STRING FOR SELECT SOURCE,TARGET FROM TAB_STRINGS;
+	  FOR C1 AS CUR_STRING DO 
+	  --Create a temporary string and store the dynamic SQL inside temp 
+	  DECLARE TEMP_T VARCHAR(1000);
+	  TEMP_T:='UPDATE '||:TABLENAME||' SET '||:COLUMNNAME||
+	  ' = REPLACE('||:COLUMNNAME||' , '''||:C1.TARGET||''' , '''||:C1.SOURCE||''')';
+  	  EXEC TEMP_T;
+	  END FOR;
 	END IF;
 END;
-CALL "SM_STE"."PROC_ALTER_STRINGS"( 'SM_STE.PEQP_DATA_SCRUB','Textlog Details','T');
+CALL "SM_STE"."PROC_ALTER_STRINGS"( 'PEQP_DATA_SCRUB','Textlog Details','RT');
+
+----------------------------------------------------------
+--Special characters should not be inserted inside the regex table as it will cause the procedure to fail
+--Use this procedure instead
+CALL "SM_STE"."PROC_CHARACTER_REPLACE"('^','');
+--Replace Procedure
+DROP PROCEDURE "SM_STE"."PROC_CHARACTER_REPLACE";
+CREATE PROCEDURE "SM_STE"."PROC_CHARACTER_REPLACE"(IN NEWSTR VARCHAR(4999),IN OLDSTR VARCHAR(4999))
+LANGUAGE SQLSCRIPT AS
+BEGIN
+	UPDATE "SM_STE"."PEQP_DATA_SCRUB" SET "Textlog Details" =REPLACE("Textlog Details",NEWSTR,OLDSTR);
+END;
+
+
+
+
