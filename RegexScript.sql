@@ -30,26 +30,57 @@ INSERT INTO REGEX VALUES(16,'RG','[1234567890][1234567890].[1234567890][12345678
 
 SELECT * FROM REGEX;
 ------------------------------------------------------------------------------------------------------------
---Procedure to clear data using regex table records
+--Procedure to clear data using regex table records both RegEx & Strings
+CALL "SM_STE"."PROC_REGEX_CLEAN"('PEQP_DATA_SCRUB','Textlog Details','RG');
 DROP PROCEDURE "SM_STE"."PROC_REGEX_CLEAN";
---Create Statement
-CREATE PROCEDURE "SM_STE"."PROC_REGEX_CLEAN"
+--Create Statement for the procedure
+--Input parameters: TableName,ColumnName and a flag which determines whether to filter data 
+--with substring replacement/regex replacement or both
+CREATE PROCEDURE "SM_STE"."PROC_REGEX_CLEAN"(IN TABLENAME VARCHAR(4999),IN COLUMNNAME VARCHAR(4999),
+					     IN FLAG VARCHAR(2))
 LANGUAGE SQLSCRIPT AS
-BEGIN	
-	DECLARE CURSOR CUR_SUBSTR FOR SELECT EXPRESSION FROM REGEX WHERE TYPE='SS';
-	DECLARE CURSOR CUR_REGEX FOR SELECT EXPRESSION FROM REGEX WHERE TYPE='RG';
-    --Replace function to remove strings
+BEGIN
+   --Declare two different cursors for both substring and regex types
+   DECLARE CURSOR CUR_SUBSTR FOR SELECT EXPRESSION FROM REGEX WHERE TYPE='SS';
+   DECLARE CURSOR CUR_REGEX FOR SELECT EXPRESSION FROM REGEX WHERE TYPE='RG';
+   --Declare two different temporary variables to store the dynamic SQL
+   DECLARE TEMP_SS varchar(1000);	
+   DECLARE TEMP_RG varchar(1000);	
+   --Declare an empty string in such a way so that it won't affect the dynamic SQL (Simple '' not working)
+   DECLARE REPLACESTR VARCHAR(6):='''''';	
+   --If the incoming flag is of type substring it will execute the substring replace 
+   IF :FLAG='SS'
+   THEN
     FOR S1 AS CUR_SUBSTR DO 
-    		UPDATE "SM_STE"."PEQP_DATA_SCRUB" SET "Textlog Details" =REPLACE("Textlog Details",:S1.EXPRESSION,'');  
+        --Store the dynamic SQL in temporary variable TEMP_SS
+	TEMP_SS:='UPDATE '||:TABLENAME||' SET '||:COLUMNNAME||' =REPLACE( '
+	||:COLUMNNAME||','''||:S1.EXPRESSION||''' ,'||:REPLACESTR||')';  
+    EXEC TEMP_SS;
     END FOR;
-    --REPLACE_REGEXPR function to remove regular expressions
+   --If the incoming flag is of type regex it will execute the regex replace 
+   ELSEIF FLAG='RG'
+   THEN
     FOR R1 AS CUR_REGEX DO 
-    	UPDATE "SM_STE"."PEQP_DATA_SCRUB" SET "Textlog Details" =REPLACE_REGEXPR(:R1.EXPRESSION IN "Textlog Details"
-    	WITH '' OCCURRENCE ALL) ;
+        --Store the dynamic SQL in temporary variable TEMP_RG
+    	TEMP_RG:='UPDATE '||:TABLENAME||' SET '||:COLUMNNAME||'=REPLACE_REGEXPR('''
+    	||:R1.EXPRESSION|| ''' IN '||:COLUMNNAME||' WITH '||:REPLACESTR||' OCCURRENCE ALL)';
+    	EXEC TEMP_RG;
     END FOR;
+  ELSE
+   --If the incoming flag is empty or any other character , it will execute both the substrings and regex replace methods
+    FOR S1 AS CUR_SUBSTR DO 
+	TEMP_SS:='UPDATE '||:TABLENAME||' SET '||:COLUMNNAME||' =REPLACE( '
+	||:COLUMNNAME||','''||:S1.EXPRESSION||''' ,'||:REPLACESTR||')';  
+    	EXEC TEMP_SS;
+    END FOR;
+    FOR R1 AS CUR_REGEX DO 
+    	TEMP_RG:='UPDATE '||:TABLENAME||' SET '||:COLUMNNAME||'=REPLACE_REGEXPR('''
+    	||:R1.EXPRESSION|| ''' IN '||:COLUMNNAME||' WITH '||:REPLACESTR||' OCCURRENCE ALL)';
+    	EXEC TEMP_RG;
+    END FOR;    
+  END IF;
 END;
---Call Procedure
-call "SM_STE"."PROC_REGEX_CLEAN" ;
+-------------------------------------------------
 
 --Table with Source/Target strings
 DROP TABLE "SM_STE"."TAB_STRINGS";
@@ -60,8 +91,11 @@ SELECT * FROM "SM_STE"."TAB_STRINGS";
 
 --Procedure for altering strings
 DROP PROCEDURE "SM_STE"."PROC_ALTER_STRINGS";
+--Create procedure statement 
+--Input parameters: TableName,ColumnName and a flag which states whether to replace occurrence of target strings
+--with source strings or vice versa
 CREATE PROCEDURE "SM_STE"."PROC_ALTER_STRINGS"(IN TABLENAME VARCHAR(4999),IN COLUMNNAME VARCHAR(4999)
-,IN FLAG VARCHAR(2))
+					       ,IN FLAG VARCHAR(2))
 LANGUAGE SQLSCRIPT AS
 BEGIN
 	--check whether the incoming flag is 'RT'/'T'
@@ -88,8 +122,3 @@ BEGIN
 	END IF;
 END;
 CALL "SM_STE"."PROC_ALTER_STRINGS"( 'PEQP_DATA_SCRUB','Textlog Details','RT');
-
-
-
-
-
