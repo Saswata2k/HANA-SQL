@@ -89,17 +89,6 @@ BEGIN
 END;
 CALL "SM_STE"."PROC_ALTER_STRINGS"( 'PEQP_DATA_SCRUB','Textlog Details','RT');
 
-----------------------------------------------------------
---Special characters should not be inserted inside the regex table as it will cause the procedure to fail
---Use this procedure instead
-CALL "SM_STE"."PROC_CHARACTER_REPLACE"('^','');
---Replace Procedure
-DROP PROCEDURE "SM_STE"."PROC_CHARACTER_REPLACE";
-CREATE PROCEDURE "SM_STE"."PROC_CHARACTER_REPLACE"(IN NEWSTR VARCHAR(4999),IN OLDSTR VARCHAR(4999))
-LANGUAGE SQLSCRIPT AS
-BEGIN
-	UPDATE "SM_STE"."PEQP_DATA_SCRUB" SET "Textlog Details" =REPLACE("Textlog Details",NEWSTR,OLDSTR);
-END;
 
 
 
